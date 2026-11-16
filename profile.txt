@@ -10,10 +10,10 @@ title1= Masters in digital business managemnt student
 
 expertise= Accounting and AI 
 
-education=Bsc (Hons) Accounting and finance , UK
+education= Bsc (Hons) Accounting and finance , UK
 
-email=luarn@mail.ntust.edu.tw
-linkedin=www.linkedin.com/in/arbab-sheikh-b85a60280
+email= luarn@mail.ntust.edu.tw
+linkedin= www.linkedin.com/in/arbab-sheikh-b85a60280
 
 about1=
 about2=
