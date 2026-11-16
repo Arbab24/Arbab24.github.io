@@ -12,7 +12,7 @@ expertise= Accounting and AI
 
 education= Bsc (Hons) Accounting and finance , UK
 
-email= luarn@mail.ntust.edu.tw
+email= sheikhar@hs-pforzheim.de
 linkedin= www.linkedin.com/in/arbab-sheikh-b85a60280
 
 about1=
