@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M12345678 MediaPipe Demo</title>
+  
+  <!-- Google Fonts: Inter & Roboto Mono for sleek digital clock & metrics -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!-- MediaPipe Hands & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: #000000;
+      color: #ffffff;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    /* Fullscreen Canvas for Floating Animated Particles */
+    #particleCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: block;
+      background: radial-gradient(circle at center, #090a14 0%, #000000 100%);
+    }
+
+    /* Top Centered Heading with Yellow-to-Green Linear Gradient */
+    .header-container {
+      position: absolute;
+      top: 24px;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .main-title {
+      font-size: clamp(1.8rem, 3.2vw, 2.75rem);
+      font-weight: 900;
+      letter-spacing: 2.5px;
+      text-transform: none;
+      background: linear-gradient(90deg, #FDE047 0%, #EAB308 28%, #86EFAC 72%, #4ADE80 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 2px 14px rgba(234, 179, 8, 0.25));
+      white-space: nowrap;
+    }
+
+    /* Bottom-Left Information Dashboard Card */
+    .dashboard-card {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      width: clamp(320px, 26vw, 420px);
+      background: rgba(10, 16, 32, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(70, 95, 160, 0.35);
+      border-radius: 18px;
+      padding: 20px 22px 18px 22px;
+      z-index: 20;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: border-color 0.3s ease;
+    }
+
+    .dashboard-card:hover {
+      border-color: rgba(99, 102, 241, 0.5);
+    }
+
+    /* Time & Date Header with Pink Left Accent Bar */
+    .clock-section {
+      display: flex;
+      align-items: center;
+      border-left: 3px solid #EC4899;
+      padding-left: 12px;
+      margin-bottom: 2px;
+    }
+
+    .clock-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .digital-time {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #00F0FF;
+      letter-spacing: 1px;
+      line-height: 1.1;
+      text-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+    }
+
+    .digital-date {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #94A3B8;
+      margin-top: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Telemetry Metric Item */
+    .metric-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #CBD5E1;
+      font-weight: 600;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .status-badge.detected {
+      color: #34D399;
+    }
+
+    .status-badge.not-detected {
+      color: #94A3B8;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: currentColor;
+    }
+
+    .status-badge.detected .status-dot {
+      box-shadow: 0 0 8px #34D399;
+      animation: pulse-dot 1.5s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    /* Custom Sleek Progress Bars */
+    .progress-track {
+      width: 100%;
+      height: 7px;
+      background: rgba(30, 41, 59, 0.85);
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .progress-fill.openness {
+      background: linear-gradient(90deg, #38BDF8 0%, #818CF8 100%);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+    }
+
+    .progress-fill.distance {
+      background: linear-gradient(90deg, #2DD4BF 0%, #38BDF8 100%);
+      box-shadow: 0 0 10px rgba(45, 212, 191, 0.4);
+    }
+
+    /* Shape & Color Display */
+    .shape-color-row {
+      font-size: 0.84rem;
+      color: #E2E8F0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .highlight-shape {
+      color: #FACC15;
+      font-weight: 700;
+      text-shadow: 0 0 8px rgba(250, 204, 21, 0.4);
+    }
+
+    .highlight-color {
+      color: #EF4444;
+      font-weight: 700;
+      text-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+      transition: color 0.3s ease;
+    }
+
+    /* Bottom Instructional Hint */
+    .instruction-caption {
+      font-size: 0.68rem;
+      color: #64748B;
+      line-height: 1.35;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 9px;
+      margin-top: 2px;
+    }
+
+    /* Bottom-Right Live Webcam Container with Turquoise Border */
+    .webcam-container {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: clamp(260px, 22vw, 340px);
+      aspect-ratio: 4 / 3;
+      border: 2.5px solid #2DD4BF;
+      border-radius: 18px;
+      overflow: hidden;
+      z-index: 20;
+      box-shadow: 0 0 20px rgba(45, 212, 191, 0.35), 0 12px 30px rgba(0, 0, 0, 0.6);
+      background-color: #0f172a;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .webcam-container:hover {
+      box-shadow: 0 0 28px rgba(45, 212, 191, 0.55), 0 16px 36px rgba(0, 0, 0, 0.7);
+    }
+
+    #webcamVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Natural mirror view */
+      display: block;
+    }
+
+    /* Landmark Canvas Overlay over webcam preview */
+    #landmarkCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transform: scaleX(-1);
+    }
+
+    /* Camera Start Prompt Overlay (if camera requires explicit user click) */
+    .camera-overlay-prompt {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 15, 30, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      z-index: 25;
+      transition: opacity 0.3s ease;
+    }
+
+    .camera-overlay-prompt button {
+      background: linear-gradient(135deg, #14B8A6, #06B6D4);
+      color: #ffffff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.4);
+      transition: transform 0.15s ease;
+    }
+
+    .camera-overlay-prompt button:hover {
+      transform: scale(1.05);
+    }
+
+    /* Home Navigation Link (Top Left) */
+    .nav-home-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 30;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      color: #94A3B8;
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+    }
+
+    .nav-home-btn:hover {
+      color: #FFFFFF;
+      background: rgba(30, 41, 59, 0.9);
+      border-color: #38BDF8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Home Navigation Link to Main Suite -->
+  <a href="/" class="nav-home-btn">
+    <span>← MediaPipe Suite</span>
+  </a>
+
+  <!-- Centered Gradient Header -->
+  <header class="header-container">
+    <h1 class="main-title">M12345678 Mediapipe Demo</h1>
+  </header>
+
+  <!-- Animated Floating Particle Canvas -->
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- Bottom-Left Semi-Transparent Information Card -->
+  <aside class="dashboard-card" id="dashboardCard">
+    <!-- Digital Clock & Date -->
+    <div class="clock-section">
+      <div class="clock-details">
+        <div class="digital-time" id="clockTime">13:28:14</div>
+        <div class="digital-date" id="clockDate">2026-11-19 Thu</div>
+      </div>
+    </div>
+
+    <!-- Right Hand Detection Status -->
+    <div class="metric-group">
+      <div class="metric-header">
+        <span>Right Hand:</span>
+        <span class="status-badge not-detected" id="handStatusBadge">
+          <span class="status-dot"></span>
+          <span id="handStatusText">Not Detected</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Hand Openness Percentage & Progress Bar -->
+    <div class="metric-group">
+      <div class="metric-header">
+        <span>Openness:</span>
+        <span id="opennessText" style="color: #38BDF8; font-family: 'Roboto Mono', monospace;">100%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill openness" id="opennessBar" style="width: 100%;"></div>
+      </div>
+    </div>
+
+    <!-- Distance to Screen (Near / Far) & Progress Bar -->
+    <div class="metric-group">
+      <div class="metric-header">
+        <span>Distance to Screen:</span>
+        <span id="distanceText" style="color: #2DD4BF; font-weight: 700;">Far</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill distance" id="distanceBar" style="width: 30%;"></div>
+      </div>
+    </div>
+
+    <!-- Shape & Color Recognition Indicator -->
+    <div class="shape-color-row">
+      <span>Shape:</span>
+      <span class="highlight-shape" id="currentShapeLabel">Heart</span>
+      <span style="margin-left: 6px;">Color:</span>
+      <span class="highlight-color" id="currentColorLabel">Red</span>
+    </div>
+
+    <!-- Instructional Hint Caption -->
+    <div class="instruction-caption">
+      Fist &rarr; Open switches shape &amp; color | Moving closer shrinks the particle range
+    </div>
+  </aside>
+
+  <!-- Bottom-Right Live Webcam Preview with Turquoise Border -->
+  <section class="webcam-container" id="webcamContainer">
+    <video id="webcamVideo" autoplay playsinline muted></video>
+    <canvas id="landmarkCanvas"></canvas>
+    
+    <!-- Camera Overlay Permission Prompt (disappears once camera starts) -->
+    <div class="camera-overlay-prompt" id="camPrompt">
+      <p style="font-size: 0.8rem; color: #E2E8F0; font-weight: 600;">Live Camera Ready</p>
+      <button type="button" id="startCamBtn">Enable Webcam</button>
+    </div>
+  </section>
+
+  <!-- ================= JAVASCRIPT APPLICATION LOGIC ================= -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. DIGITAL CLOCK & DATE LOGIC
+      const clockTimeEl = document.getElementById("clockTime");
+      const clockDateEl = document.getElementById("clockDate");
+
+      const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+      function updateClock() {
+        const now = new Date();
+        const hrs = String(now.getHours()).padStart(2, '0');
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const secs = String(now.getSeconds()).padStart(2, '0');
+        clockTimeEl.textContent = `${hrs}:${mins}:${secs}`;
+
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const dayName = DAY_NAMES[now.getDay()];
+        clockDateEl.textContent = `${year}-${month}-${day} ${dayName}`;
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+
+      // 2. PARTICLE ENGINE SETUP
+      const canvas = document.getElementById("particleCanvas");
+      const ctx = canvas.getContext("2d");
+
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+
+      function resizeCanvas() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+      }
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      // Shape Definitions & Themes
+      const SHAPES = ["Heart", "Circle", "Spiral", "Star"];
+      const COLORS = [
+        { name: "Red", hex: "#EF4444", rgb: [239, 68, 68], palette: ["#EF4444", "#F43F5E", "#E11D48", "#FDA4AF"] },
+        { name: "Pink", hex: "#EC4899", rgb: [236, 72, 153], palette: ["#EC4899", "#F472B6", "#DB2777", "#FBCFE8"] },
+        { name: "Orange", hex: "#F97316", rgb: [249, 115, 22], palette: ["#F97316", "#FB923C", "#EA580C", "#FED7AA"] },
+        { name: "Yellow", hex: "#FACC15", rgb: [250, 204, 21], palette: ["#FACC15", "#FDE047", "#EAB308", "#FEF08A"] }
+      ];
+
+      let currentShapeIndex = 0; // Starts at "Heart"
+      let currentColorIndex = 0; // Starts at "Red"
+
+      const currentShapeLabel = document.getElementById("currentShapeLabel");
+      const currentColorLabel = document.getElementById("currentColorLabel");
+
+      function updateShapeAndColorUI() {
+        const shapeName = SHAPES[currentShapeIndex];
+        const colorInfo = COLORS[currentColorIndex];
+
+        currentShapeLabel.textContent = shapeName;
+        currentColorLabel.textContent = colorInfo.name;
+        currentColorLabel.style.color = colorInfo.hex;
+        currentColorLabel.style.textShadow = `0 0 10px ${colorInfo.hex}`;
+
+        // Reassign target particles according to shape
+        generateShapeTargets(shapeName);
+      }
+
+      // Generate Parametric Coordinates for Shapes
+      function generateShapeTargets(shapeName) {
+        const count = particles.length;
+        for (let i = 0; i < count; i++) {
+          const t = (i / count) * Math.PI * 2;
+          let tx = 0;
+          let ty = 0;
+
+          if (shapeName === "Heart") {
+            // Parametric Heart Formula
+            const u = t;
+            tx = 16 * Math.pow(Math.sin(u), 3);
+            ty = -(13 * Math.cos(u) - 5 * Math.cos(2 * u) - 2 * Math.cos(3 * u) - Math.cos(4 * u));
+            tx *= 14;
+            ty *= 14;
+          } else if (shapeName === "Circle") {
+            const rad = 180 + (i % 5) * 12;
+            tx = rad * Math.cos(t);
+            ty = rad * Math.sin(t);
+          } else if (shapeName === "Spiral") {
+            const angle = t * 6;
+            const r = (i / count) * 240 + 20;
+            tx = r * Math.cos(angle);
+            ty = r * Math.sin(angle);
+          } else if (shapeName === "Star") {
+            const k = (i % 10);
+            const r = (k % 2 === 0) ? 220 : 100;
+            const starAngle = t * 5;
+            tx = r * Math.cos(starAngle);
+            ty = r * Math.sin(starAngle);
+          }
+
+          particles[i].targetOffsetX = tx;
+          particles[i].targetOffsetY = ty;
+        }
+      }
+
+      // 400-500 Particles in Red, Pink, Orange, Yellow
+      const PARTICLE_COUNT = 450;
+      const particles = [];
+
+      class Particle {
+        constructor() {
+          this.reset(true);
+        }
+
+        reset(initial = false) {
+          this.x = initial ? Math.random() * width : width / 2 + (Math.random() - 0.5) * 200;
+          this.y = initial ? Math.random() * height : height / 2 + (Math.random() - 0.5) * 200;
+          this.vx = (Math.random() - 0.5) * 1.4;
+          this.vy = (Math.random() - 0.5) * 1.4;
+          this.radius = Math.random() * 3.2 + 1.8;
+          this.baseAlpha = Math.random() * 0.55 + 0.35;
+          this.alpha = this.baseAlpha;
+          this.targetOffsetX = 0;
+          this.targetOffsetY = 0;
+
+          // Pick one of the 4 warm hues: Red, Pink, Orange, Yellow
+          const colorSet = [
+            "#EF4444", // Red
+            "#EC4899", // Pink
+            "#F97316", // Orange
+            "#FACC15"  // Yellow
+          ];
+          this.color = colorSet[Math.floor(Math.random() * colorSet.length)];
+        }
+
+        update(handData) {
+          const { isDetected, handX, handY, proximity, openness } = handData;
+
+          if (isDetected) {
+            // Hand is present: shrink particle range when closer
+            // Proximity is 0 (Far) to 1 (Near)
+            // When moving closer, range shrinks down to a focused cluster
+            const spreadRadius = Math.max(70, (1.0 - proximity * 0.72) * Math.min(width, height) * 0.45);
+
+            // Shape anchor point: centered at hand or center of screen influenced by hand
+            const anchorX = handX !== null ? handX : width / 2;
+            const anchorY = handY !== null ? handY : height / 2;
+
+            const targetX = anchorX + (this.targetOffsetX * (spreadRadius / 220));
+            const targetY = anchorY + (this.targetOffsetY * (spreadRadius / 220));
+
+            // Smooth spring attraction to target shape formation
+            const dx = targetX - this.x;
+            const dy = targetY - this.y;
+            this.vx = this.vx * 0.90 + dx * 0.045;
+            this.vy = this.vy * 0.90 + dy * 0.045;
+
+            this.x += this.vx;
+            this.y += this.vy;
+          } else {
+            // Floating Brownian ambient drift across the screen
+            this.x += this.vx;
+            this.y += this.vy;
+
+            // Bounce gently off borders
+            if (this.x < 0 || this.x > width) this.vx *= -1;
+            if (this.y < 0 || this.y > height) this.vy *= -1;
+          }
+        }
+
+        draw(ctx) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.fillStyle = this.color;
+          ctx.shadowColor = this.color;
+          ctx.shadowBlur = 8;
+          ctx.globalAlpha = this.alpha;
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push(new Particle());
+      }
+      generateShapeTargets(SHAPES[currentShapeIndex]);
+
+      // 3. HAND TRACKING STATE & TELEMETRY
+      const handState = {
+        isDetected: false,
+        handX: null,
+        handY: null,
+        openness: 1.0,      // 0.0 (Fist) to 1.0 (Open)
+        proximity: 0.3,     // 0.0 (Far) to 1.0 (Near)
+        isNear: false,
+        wasFist: false,     // For transition detection
+        lastSwitchTime: 0
+      };
+
+      const handStatusBadge = document.getElementById("handStatusBadge");
+      const handStatusText = document.getElementById("handStatusText");
+      const opennessText = document.getElementById("opennessText");
+      const opennessBar = document.getElementById("opennessBar");
+      const distanceText = document.getElementById("distanceText");
+      const distanceBar = document.getElementById("distanceBar");
+
+      // Cycle shape & color on Fist -> Open transition
+      function switchShapeAndColor() {
+        const now = performance.now();
+        if (now - handState.lastSwitchTime < 600) return; // Debounce 600ms
+        handState.lastSwitchTime = now;
+
+        currentShapeIndex = (currentShapeIndex + 1) % SHAPES.length;
+        currentColorIndex = (currentColorIndex + 1) % COLORS.length;
+        updateShapeAndColorUI();
+
+        // Update particle colors according to the new theme
+        const activePalette = COLORS[currentColorIndex].palette;
+        particles.forEach((p) => {
+          p.color = activePalette[Math.floor(Math.random() * activePalette.length)];
+        });
+      }
+
+      // Animation Render Loop
+      function renderParticles() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].update(handState);
+          particles[i].draw(ctx);
+        }
+
+        requestAnimationFrame(renderParticles);
+      }
+      requestAnimationFrame(renderParticles);
+
+      // 4. WEBCAM & MEDIAPIPE HANDS PIPELINE
+      const videoElement = document.getElementById("webcamVideo");
+      const landmarkCanvas = document.getElementById("landmarkCanvas");
+      const landmarkCtx = landmarkCanvas.getContext("2d");
+      const camPrompt = document.getElementById("camPrompt");
+      const startCamBtn = document.getElementById("startCamBtn");
+
+      let camera = null;
+      let hands = null;
+
+      function onHandResults(results) {
+        landmarkCanvas.width = videoElement.videoWidth || 320;
+        landmarkCanvas.height = videoElement.videoHeight || 240;
+        landmarkCtx.clearRect(0, 0, landmarkCanvas.width, landmarkCanvas.height);
+
+        let rightHandFound = false;
+
+        if (results.multiHandLandmarks && results.multiHandedness && results.multiHandLandmarks.length > 0) {
+          for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+            const classification = results.multiHandedness[i];
+            const landmarks = results.multiHandLandmarks[i];
+
+            // In mirrored selfie camera, MediaPipe label 'Left' physically represents the user's Right hand,
+            // or 'Right' when un-mirrored. We accept either or prioritize right hand tracking!
+            const label = classification.label;
+            const isRightHand = (label === "Right" || label === "Left"); // User single or dual hand
+
+            if (isRightHand && !rightHandFound) {
+              rightHandFound = true;
+              handState.isDetected = true;
+
+              // Calculate palm center (average of wrist 0, index MCP 5, pinky MCP 17)
+              const wrist = landmarks[0];
+              const indexMcp = landmarks[5];
+              const pinkyMcp = landmarks[17];
+              const middleTip = landmarks[12];
+              const middleMcp = landmarks[9];
+
+              // Screen coordinates for particle attraction
+              // Invert X because video is mirrored
+              const palmX = (1.0 - middleMcp.x) * width;
+              const palmY = middleMcp.y * height;
+              handState.handX = palmX;
+              handState.handY = palmY;
+
+              // Distance to Screen calculation (apparent hand size in frame)
+              // Distance between wrist (0) and middle MCP (9)
+              const palmSize = Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y);
+              // Normalized proximity: 0.15 (Far) to 0.45 (Near)
+              const proxNorm = Math.min(1.0, Math.max(0.0, (palmSize - 0.14) / (0.38 - 0.14)));
+              handState.proximity = proxNorm;
+              handState.isNear = proxNorm > 0.50;
+
+              // Hand Openness calculation:
+              // Ratio of tip-to-wrist distances vs extended hand scale
+              const tips = [4, 8, 12, 16, 20];
+              const mcps = [2, 5, 9, 13, 17];
+              let openScore = 0;
+
+              for (let k = 0; k < 5; k++) {
+                const tipDist = Math.hypot(landmarks[tips[k]].x - wrist.x, landmarks[tips[k]].y - wrist.y);
+                const mcpDist = Math.hypot(landmarks[mcps[k]].x - wrist.x, landmarks[mcps[k]].y - wrist.y);
+                // When finger is open, tipDist is ~1.8x - 2.5x of mcpDist; when closed, tipDist is close to mcpDist
+                const ratio = Math.max(0.0, Math.min(1.0, (tipDist / mcpDist - 1.0) / 1.1));
+                openScore += ratio;
+              }
+              const opennessRatio = Math.max(0.0, Math.min(1.0, openScore / 5.0));
+              handState.openness = opennessRatio;
+
+              // Fist -> Open state transition detection:
+              const isCurrentlyFist = opennessRatio < 0.28;
+              const isCurrentlyOpen = opennessRatio > 0.65;
+
+              if (isCurrentlyFist) {
+                handState.wasFist = true;
+              } else if (isCurrentlyOpen && handState.wasFist) {
+                // Trigger transition!
+                handState.wasFist = false;
+                switchShapeAndColor();
+              }
+
+              // Optional: Heart gesture detection (thumb & index tip touch, others folded)
+              const thumbTip = landmarks[4];
+              const indexTip = landmarks[8];
+              const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+              if (pinchDist < 0.06 && opennessRatio > 0.35) {
+                if (SHAPES[currentShapeIndex] !== "Heart") {
+                  currentShapeIndex = 0; // Lock to Heart
+                  updateShapeAndColorUI();
+                }
+              }
+
+              // Draw neon green/cyan skeleton overlay on preview
+              drawHandSkeleton(landmarks, landmarkCtx, landmarkCanvas.width, landmarkCanvas.height);
+            }
+          }
+        }
+
+        if (!rightHandFound) {
+          handState.isDetected = false;
+          handState.handX = null;
+          handState.handY = null;
+        }
+
+        // Update Dashboard DOM metrics
+        updateDashboardTelemetry();
+      }
+
+      function updateDashboardTelemetry() {
+        if (handState.isDetected) {
+          handStatusBadge.className = "status-badge detected";
+          handStatusText.textContent = "Detected";
+
+          const openPercent = Math.round(handState.openness * 100);
+          opennessText.textContent = `${openPercent}%`;
+          opennessBar.style.width = `${openPercent}%`;
+
+          const isNear = handState.isNear;
+          distanceText.textContent = isNear ? "Near" : "Far";
+          distanceText.style.color = isNear ? "#34D399" : "#2DD4BF";
+          distanceBar.style.width = `${Math.round(handState.proximity * 100)}%`;
+        } else {
+          handStatusBadge.className = "status-badge not-detected";
+          handStatusText.textContent = "Not Detected";
+
+          opennessText.textContent = "100%";
+          opennessBar.style.width = "100%";
+
+          distanceText.textContent = "Far";
+          distanceText.style.color = "#2DD4BF";
+          distanceBar.style.width = "30%";
+        }
+      }
+
+      // Draw subtle glowing hand landmarks in webcam preview
+      function drawHandSkeleton(landmarks, gCtx, lw, lh) {
+        gCtx.strokeStyle = "rgba(45, 212, 191, 0.7)";
+        gCtx.lineWidth = 2;
+        gCtx.fillStyle = "#FACC15";
+
+        const CONNECTIONS = [
+          [0,1],[1,2],[2,3],[3,4],
+          [0,5],[5,6],[6,7],[7,8],
+          [5,9],[9,10],[10,11],[11,12],
+          [9,13],[13,14],[14,15],[15,16],
+          [13,17],[17,18],[18,19],[19,20],[0,17]
+        ];
+
+        CONNECTIONS.forEach(([s, e]) => {
+          const p1 = landmarks[s];
+          const p2 = landmarks[e];
+          gCtx.beginPath();
+          gCtx.moveTo(p1.x * lw, p1.y * lh);
+          gCtx.lineTo(p2.x * lw, p2.y * lh);
+          gCtx.stroke();
+        });
+
+        landmarks.forEach((p, idx) => {
+          gCtx.beginPath();
+          gCtx.arc(p.x * lw, p.y * lh, (idx === 4 || idx === 8 || idx === 12) ? 4 : 2.5, 0, Math.PI * 2);
+          gCtx.fill();
+        });
+      }
+
+      // Initialize MediaPipe Hands & Camera
+      async function initMediaPipe() {
+        try {
+          hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+          });
+
+          hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          });
+
+          hands.onResults(onHandResults);
+
+          camera = new Camera(videoElement, {
+            onFrame: async () => {
+              if (videoElement.readyState >= 2) {
+                await hands.send({ image: videoElement });
+              }
+            },
+            width: 640,
+            height: 480
+          });
+
+          await camera.start();
+          camPrompt.style.display = "none";
+        } catch (err) {
+          console.warn("Camera start prompt required:", err);
+          camPrompt.style.display = "flex";
+        }
+      }
+
+      startCamBtn.addEventListener("click", () => {
+        initMediaPipe();
+      });
+
+      // Attempt automatic start if permitted
+      initMediaPipe();
+    });
+  </script>
+</body>
+</html>
