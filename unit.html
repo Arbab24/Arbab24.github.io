@@ -766,7 +766,7 @@
             );
 
             for (const { i, src } of checks) {
-                if (!src) break; // stop at the first gap to preserve ordering
+                if (!src) continue; // skip missing images and continue checking
                 images.push({
                     src: src,
                     index: i,
